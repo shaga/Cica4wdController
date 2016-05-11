@@ -86,12 +86,14 @@ namespace LibBcore
             {
                 BcoreCharacteristics.Add(characteristic.Uuid, characteristic);
             }
-
+            IsInitialized = true;
             return true;
         }
 
         public async Task<int> ReadBattery()
         {
+            if (!IsInitialized) return 0;
+
             var value = await ReadValue(BcoreUuid.BatteryCharacteristic);
 
             if (value == null) return 0;
@@ -103,6 +105,8 @@ namespace LibBcore
 
         public async Task WriteMotorPwm(int idx, int speed, bool isFlip = false)
         {
+            if (!IsInitialized) return;
+
             if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
 
             await WriteValue(BcoreUuid.MotorCharacteristic, Bcore.CreateMotorSpeedValue(idx, speed, isFlip));
@@ -110,6 +114,8 @@ namespace LibBcore
 
         public async Task WriteServoPos(int idx, int pos, bool isFlip = false, int trim = 0)
         {
+            if (!IsInitialized) return;
+
             if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
 
             await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, isFlip, trim));
@@ -117,6 +123,8 @@ namespace LibBcore
 
         public async Task WriteServoPos(int idx, int pos, int trim)
         {
+            if (!IsInitialized) return;
+
             if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
 
             await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, trim));
@@ -124,6 +132,8 @@ namespace LibBcore
 
         public async Task WritePortOutState(int idx, bool isOn)
         {
+            if (!IsInitialized) return;
+
             if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
 
             PortOutState[idx] = isOn;
@@ -133,6 +143,8 @@ namespace LibBcore
 
         public async Task<BcoreFunctionInfo> ReadFunctionInfo()
         {
+            if (!IsInitialized) return null;
+
             var value = await ReadValue(BcoreUuid.FunctionCharacteristic);
 
             if (value == null) return null;

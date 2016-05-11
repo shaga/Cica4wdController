@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.Devices.Enumeration;
 using Windows.Foundation;
+using Windows.Gaming.Input;
 using Windows.UI.Core;
+using Windows.UI.Xaml.Input;
 using LibBcore;
 
 namespace Cica4WD.Models
@@ -66,6 +68,11 @@ namespace Cica4WD.Models
 
         public void Stop()
         {
+            IsRunning = false;
+            FrontBcore?.Dispose();
+            FrontBcore = null;
+            RearBcore?.Dispose();
+            RearBcore = null;
         }
 
         #endregion
@@ -84,30 +91,73 @@ namespace Cica4WD.Models
                 {
                     var status = controller.GetCurrentReading();
 
+                    var speed = (int) (128*status.LeftThumbstickY);
+                    var handle = status.RightThumbstickX;
+                    var leftStickPush = status.Buttons.HasFlag(GamepadButtons.LeftThumbstick);
+                    var leftButtonPush = status.Buttons.HasFlag(GamepadButtons.LeftShoulder);
+                    var rightButtonPush = status.Buttons.HasFlag(GamepadButtons.RightShoulder);
 
-                    var left = (int) (128*status.LeftThumbstickY + 128);
-                    var right = (int) (128*status.RightThumbstickY + 128);
+                    int left = 0;
+                    int right = 0;
 
-                    if (Math.Abs(left - 128) < 10) left = 128;
-                    if (Math.Abs(right - 128) < 10) right = 128;
-
-                    await AppDispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    if ((leftButtonPush || rightButtonPush) && speed == 128)
                     {
-                        if (lb != left)
+                        if (leftButtonPush)
                         {
-                            FrontBcore?.WriteMotorPwm(0, left, true);
-                            RearBcore?.WriteMotorPwm(0, left);
+                            FrontBcore?.WriteMotorPwm(0, 0, true);
+                            FrontBcore?.WriteMotorPwm(1, 255, true);
                         }
-                        if (rb != right)
+                        else
                         {
-                            FrontBcore?.WriteMotorPwm(1, right,true);
-                            RearBcore?.WriteMotorPwm(1, right);
+                            FrontBcore?.WriteMotorPwm(0, 255, true);
+                            FrontBcore?.WriteMotorPwm(1, 0, true);
                         }
-                    });
 
-                    lb = left;
-                    rb = right;
-                    await Task.Delay(200);
+                        RearBcore?.WriteMotorPwm(0, 255);
+                        RearBcore?.WriteMotorPwm(1, 255);
+                    }
+                    else
+                    {
+                        if (leftStickPush)
+                        {
+                            left = (int) (128*handle + 128);
+                            right = (int) (128*(0 - handle) + 128);
+                        }
+                        else
+                        {
+                            if (handle < 0)
+                            {
+                                right = speed + 128;
+                                left = 128 + (int) (speed*(1 + handle*0.8));
+                            }
+                            else
+                            {
+                                left = speed + 128;
+                                right = 128 + (int) (speed*(1 - handle*0.8));
+                            }
+                        }
+
+                        if (Math.Abs(left - 128) < 10) left = 128;
+                        if (Math.Abs(right - 128) < 10) right = 128;
+
+                        await AppDispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                        {
+                            if (lb != left)
+                            {
+                                FrontBcore?.WriteMotorPwm(0, left, true);
+                                RearBcore?.WriteMotorPwm(0, left);
+                            }
+                            if (rb != right)
+                            {
+                                FrontBcore?.WriteMotorPwm(1, right, true);
+                                RearBcore?.WriteMotorPwm(1, right);
+                            }
+                        });
+
+                        lb = left;
+                        rb = right;
+                    }
+                    await Task.Delay(100);
                 }
             });
         }

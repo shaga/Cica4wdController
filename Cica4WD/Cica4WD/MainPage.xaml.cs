@@ -26,12 +26,6 @@ namespace Cica4WD
         public MainPage()
         {
             this.InitializeComponent();
-
-            Loaded += (s, e) =>
-            {
-                var gamecontroller = new GameController();
-                gamecontroller.Start();
-            };
         }
     }
 }
