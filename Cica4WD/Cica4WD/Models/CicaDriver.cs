@@ -144,13 +144,13 @@ namespace Cica4WD.Models
                         {
                             if (lb != left)
                             {
-                                FrontBcore?.WriteMotorPwm(0, left);
+                                FrontBcore?.WriteMotorPwm(0, left, true);
                                 RearBcore?.WriteMotorPwm(0, left, true);
                             }
                             if (rb != right)
                             {
-                                FrontBcore?.WriteMotorPwm(1, right, true);
-                                RearBcore?.WriteMotorPwm(1, right, true);
+                                FrontBcore?.WriteMotorPwm(1, right);
+                                RearBcore?.WriteMotorPwm(1, right);
                             }
                         });
 

@@ -10,6 +10,7 @@
     
     <Page.Resources>
         <viewModels:MainViewModel x:Key="MainViewModel"/>
+        <viewModels:ButtonContentConverter x:Key="ButtonContentConverter"/>
         <Style TargetType="Button">
             <Setter Property="Margin" Value="3"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -38,11 +39,12 @@
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         
-        <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Content="SCAN START"
+        <Button Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Content="{Binding IsScanning, Converter={StaticResource ButtonContentConverter}, ConverterParameter=SCAN}"
                 Command="{Binding CommandScan}"/>
         
         <ListView Grid.Row="1   " Grid.Column="0" Grid.ColumnSpan="3"
-                  ItemsSource="{Binding FoundBcores}" SelectedItem="{Binding SelectedBcore, Mode=TwoWay}">
+                  ItemsSource="{Binding FoundBcores}" SelectedItem="{Binding SelectedBcore, Mode=TwoWay}"
+                  >
             
             <ListView.ItemTemplate>
                 <DataTemplate>
@@ -62,6 +64,8 @@
         <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RearBcoreName}"/>
         <Button Grid.Row="3" Grid.Column="2" Content="Clear" Command="{Binding CommandResetBcore}" CommandParameter="False"/>
 
-        <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Content="START" Command="{Binding CommandStartControl}"/>
+        <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Command="{Binding CommandStartControl}"
+                Content="{Binding IsConnecting, Converter={StaticResource ButtonContentConverter}, ConverterParameter=Control}">
+        </Button>
     </Grid>
 </Page>

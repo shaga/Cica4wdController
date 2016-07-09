@@ -8,6 +8,7 @@ using Windows.ApplicationModel.Core;
 using Windows.Devices.Sensors;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
+using Windows.UI.Xaml.Data;
 using Cica4WD.Models;
 using LibBcore;
 using Microsoft.Practices.Prism.Commands;
@@ -15,6 +16,22 @@ using Microsoft.Practices.Prism.Mvvm;
 
 namespace Cica4WD.ViewModels
 {
+    class ButtonContentConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            var val = (bool) value;
+            var prefix = parameter as string;
+
+            return prefix + " " + (val ? "Stop" : "Start");
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     class MainViewModel : BindableBase
     {
         #region field
@@ -59,6 +76,7 @@ namespace Cica4WD.ViewModels
                 OnPropertyChanged(nameof(FrontBcoreName));
                 CommandSelectBcore.RaiseCanExecuteChanged();
                 CommandResetBcore.RaiseCanExecuteChanged();
+                CommandStartControl.RaiseCanExecuteChanged();
             }
         }
 
@@ -73,6 +91,7 @@ namespace Cica4WD.ViewModels
                 OnPropertyChanged(nameof(RearBcoreName));
                 CommandSelectBcore.RaiseCanExecuteChanged();
                 CommandResetBcore.RaiseCanExecuteChanged();
+                CommandStartControl.RaiseCanExecuteChanged();
             }
         }
 
@@ -85,6 +104,7 @@ namespace Cica4WD.ViewModels
             {
                 SetProperty(ref _isScanning, value);
                 CommandSelectBcore.RaiseCanExecuteChanged();
+                CommandStartControl.RaiseCanExecuteChanged();
             }
         }
 
@@ -94,7 +114,10 @@ namespace Cica4WD.ViewModels
             set
             {
                 SetProperty(ref _isConnecting, value);
+                CommandStartControl.RaiseCanExecuteChanged();
                 CommandSelectBcore.RaiseCanExecuteChanged();
+                CommandSelectBcore.RaiseCanExecuteChanged();
+                CommandResetBcore.RaiseCanExecuteChanged();
             }
         }
 
@@ -103,6 +126,8 @@ namespace Cica4WD.ViewModels
         private BcoreScanner Scanner { get; }
 
         private static CoreDispatcher AppDispatcher => CoreApplication.MainView.CoreWindow.Dispatcher;
+
+        private CicaDriver Driver { get; set; }
 
         #region Command
 
@@ -132,7 +157,7 @@ namespace Cica4WD.ViewModels
 
         public DelegateCommand CommandStartControl
         {
-            get { return _commandStartControl ?? (_commandStartControl = new DelegateCommand(StartControl)); }
+            get { return _commandStartControl ?? (_commandStartControl = new DelegateCommand(StartControl, CanStartControl)); }
         }
 
         #endregion
@@ -254,8 +279,38 @@ namespace Cica4WD.ViewModels
 
         private void StartControl()
         {
-            var driver = new CicaDriver();
-            driver.Start(FrontBcore.Bcore, RearBcore?.Bcore);
+            if (Driver == null)
+            {
+                Driver = new CicaDriver();
+                Driver.BcoreConnectionChanged += DisconnectedDriver;
+                Driver.Start(FrontBcore.Bcore, RearBcore.Bcore);
+                IsConnecting = true;
+            }
+            else
+            {
+                Driver.BcoreConnectionChanged -= DisconnectedDriver;
+                Driver.Stop();
+                Driver = null;
+                IsConnecting = false;
+            }
+
+            //var driver = new CicaDriver();
+            //driver.BcoreConnectionChanged += (d, isConnected) =>
+            //{
+
+            //};
+            //driver.Start(FrontBcore.Bcore, RearBcore?.Bcore);
+        }
+
+        private void DisconnectedDriver(CicaDriver driver, bool isConnected)
+        {
+            Driver.BcoreConnectionChanged -= DisconnectedDriver;
+            Driver = null;
+        }
+
+        private bool CanStartControl()
+        {
+            return FrontBcore != null && RearBcore != null && !IsScanning;
         }
 
         #region RunOnUiThread
