@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.Devices.Sensors;
+using Windows.Gaming.Input;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Data;
@@ -16,6 +17,21 @@ using Microsoft.Practices.Prism.Mvvm;
 
 namespace Cica4WD.ViewModels
 {
+    public class StatusTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            var status = (bool)value;
+
+            return status ? "Connected" : "Not conntected";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     class ButtonContentConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, string language)
@@ -34,133 +50,87 @@ namespace Cica4WD.ViewModels
 
     class MainViewModel : BindableBase
     {
+        #region const
+
+        private const string BcoreFrontName = "bCore_D05FB84E8A30";
+        private const string BcoreRearName = "bCore_D05FB84E7F32";
+
+        private enum ETurnMode
+        {
+            None,
+            Left,
+            Right,
+        }
+
+        public enum EControlMode
+        {
+            Car,
+            Tank,
+        }
+
+        #endregion
+
         #region field
 
-        private BcoreFoundEventArgs _selectedBcore;
-        private BcoreFoundEventArgs _frontBcore;
-        private BcoreFoundEventArgs _rearBcore;
-        private bool _isConnecting;
-        private bool _isScanning;
+        private bool _isConnectedGamepad;
 
-        private DelegateCommand _commandScan;
-        private DelegateCommand<string> _commandSelectBcore;
-        private DelegateCommand<string> _commandResetBcore;
-        private DelegateCommand _commandStartControl;
+        private EControlMode _controlMode;
+
+        private BcoreManager _frontBcoreManager;
+        private BcoreManager _rearBcoreManager;
 
         #endregion
 
         #region property
 
-        public BcoreFoundEventArgs SelectedBcore
+        public bool IsConnectedGamepad
         {
-            get { return _selectedBcore; }
+            get { return _isConnectedGamepad; }
+            set { SetProperty(ref _isConnectedGamepad, value); }
+        }
+
+        private BcoreManager FrontBcoreManager
+        {
+            get { return _frontBcoreManager; }
             set
             {
-                if (_selectedBcore == value) return;
-                if (value == null)
-                {
-                    
-                }
-
-                SetProperty(ref _selectedBcore, value);
-                CommandSelectBcore.RaiseCanExecuteChanged();
+                _frontBcoreManager = value; 
+                OnPropertyChanged(nameof(IsConnectedFrontBcore));
             }
         }
 
-        public BcoreFoundEventArgs FrontBcore
+        private BcoreManager RearBcoreManager
         {
-            get { return _frontBcore; }
+            get { return _rearBcoreManager; }
             set
             {
-                SetProperty(ref _frontBcore, value); 
-                OnPropertyChanged(nameof(FrontBcoreName));
-                CommandSelectBcore.RaiseCanExecuteChanged();
-                CommandResetBcore.RaiseCanExecuteChanged();
-                CommandStartControl.RaiseCanExecuteChanged();
+                _rearBcoreManager = value; 
+                OnPropertyChanged(nameof(IsConnectedRearBcore));
             }
         }
 
-        public string FrontBcoreName => FrontBcore?.Name ?? "---";
-
-        public BcoreFoundEventArgs RearBcore
+        public EControlMode ControlMode
         {
-            get { return _rearBcore; }
-            set
-            {
-                SetProperty(ref _rearBcore, value); 
-                OnPropertyChanged(nameof(RearBcoreName));
-                CommandSelectBcore.RaiseCanExecuteChanged();
-                CommandResetBcore.RaiseCanExecuteChanged();
-                CommandStartControl.RaiseCanExecuteChanged();
-            }
+            get { return _controlMode; }
+            set { SetProperty(ref _controlMode, value); }
         }
 
-        public string RearBcoreName => RearBcore?.Name ?? "---";
+        private ETurnMode TurnMode { get; set; }
 
-        public bool IsScanning
-        {
-            get { return _isScanning; }
-            set
-            {
-                SetProperty(ref _isScanning, value);
-                CommandSelectBcore.RaiseCanExecuteChanged();
-                CommandStartControl.RaiseCanExecuteChanged();
-            }
-        }
+        private GamepadReader GamepadReader { get; }
 
-        public bool IsConnecting
-        {
-            get { return _isConnecting; }
-            set
-            {
-                SetProperty(ref _isConnecting, value);
-                CommandStartControl.RaiseCanExecuteChanged();
-                CommandSelectBcore.RaiseCanExecuteChanged();
-                CommandSelectBcore.RaiseCanExecuteChanged();
-                CommandResetBcore.RaiseCanExecuteChanged();
-            }
-        }
-
-        public ObservableCollection<BcoreFoundEventArgs> FoundBcores { get; } = new ObservableCollection<BcoreFoundEventArgs>(); 
+        public bool IsConnectedFrontBcore => FrontBcoreManager != null;
+        public bool IsConnectedRearBcore => RearBcoreManager != null;
 
         private BcoreScanner Scanner { get; }
 
         private static CoreDispatcher AppDispatcher => CoreApplication.MainView.CoreWindow.Dispatcher;
 
-        private CicaDriver Driver { get; set; }
+        private int BeforeSpeedLeft { get; set; } = 128;
 
-        #region Command
+        private int BeforeSpeedRight { get; set; } = 128;
 
-        public DelegateCommand CommandScan
-        {
-            get { return _commandScan ?? (_commandScan = new DelegateCommand(Scan, () => !IsConnecting)); }
-        }
-
-
-        public DelegateCommand<string> CommandSelectBcore
-        {
-            get
-            {
-                return _commandSelectBcore ??
-                       (_commandSelectBcore = new DelegateCommand<string>(SelectBcore, CanSelectBcore));
-            }
-        }
-
-        public DelegateCommand<string> CommandResetBcore
-        {
-            get
-            {
-                return _commandResetBcore ??
-                       (_commandResetBcore = new DelegateCommand<string>(ResetBcore, CanRestBcore));
-            }
-        }
-
-        public DelegateCommand CommandStartControl
-        {
-            get { return _commandStartControl ?? (_commandStartControl = new DelegateCommand(StartControl, CanStartControl)); }
-        }
-
-        #endregion
+        private bool IsPressBack { get; set; }
 
         #endregion
 
@@ -168,9 +138,29 @@ namespace Cica4WD.ViewModels
 
         public MainViewModel()
         {
+            GamepadReader = new GamepadReader();
+            GamepadReader.ConnectedGamepad += (s, isConnected) =>
+            {
+                RunOnUiThread(() =>
+                {
+                    IsConnectedGamepad = isConnected;
+                    if (!isConnected)
+                    {
+                        FrontBcoreManager?.WriteMotorPwm(0, Bcore.StopMotorPwm);
+                        FrontBcoreManager?.WriteMotorPwm(1, Bcore.StopMotorPwm);
+                        RearBcoreManager?.WriteMotorPwm(0, Bcore.StopMotorPwm);
+                        RearBcoreManager?.WriteMotorPwm(1, Bcore.StopMotorPwm);
+                    }
+                });
+            };
+            GamepadReader.UpdatedGamepadStatus += OnUpdatedGamepadStatus;
+
+            GamepadReader.Start();
+
             Scanner = new BcoreScanner();
-            Scanner.FinishedScan += OnFinishedScan;
             Scanner.FoundBcore += OnFoundBcore;
+
+            Scanner.StartScan();
         }
 
         #endregion
@@ -181,137 +171,39 @@ namespace Cica4WD.ViewModels
 
         #region Scan
 
-        private void Scan()
-        {
-            if (IsScanning) Scanner.StopScan();
-            else
-            {
-                FoundBcores.Clear();
-                FrontBcore = null;
-                RearBcore = null;
-                Scanner.StartScan();
-                IsScanning = true;
-            }
-        }
-
         private void OnFoundBcore(object sender, BcoreFoundEventArgs e)
         {
-            RunOnUiThread(() =>
+            RunOnUiThread(async () =>
             {
-                if (FoundBcores.Any(i => i.Address == e.Address)) return;
 
-                FoundBcores.Add(e);
+
+                switch (e.Name)
+                {
+                    case BcoreFrontName:
+                        FrontBcoreManager = new BcoreManager(e.Bcore);
+                        await FrontBcoreManager.Init();
+                        break;
+                    case BcoreRearName:
+                        RearBcoreManager = new BcoreManager(e.Bcore);
+                        await RearBcoreManager.Init();
+                        break;
+                    default:
+                        return;
+                }
+
+                if (FrontBcoreManager == null || RearBcoreManager == null)
+                {
+                    return;
+                }
+
+                Scanner.StopScan();
             });
         }
 
-        private void OnFinishedScan(object sender, EventArgs e)
-        {
-            RunOnUiThread(() => IsScanning = false);
-        }
+        #endregion
 
         #endregion
 
-        #region Select
-
-        private void SelectBcore(string param)
-        {
-            if (SelectedBcore == null) return;
-
-            var isFront = ParamToBoolean(param);
-
-            if (isFront)
-            {
-                if (SelectedBcore.Address != (RearBcore?.Address ?? 0))
-                {
-                    FrontBcore = SelectedBcore;
-                }
-            }
-            else
-            {
-                if (SelectedBcore.Address != (FrontBcore?.Address ?? 0))
-                {
-                    RearBcore = SelectedBcore;
-                }
-            }
-        }
-
-        private bool CanSelectBcore(string param)
-        {
-            if (IsScanning || IsConnecting || SelectedBcore == null) return false;
-
-            var isFront = ParamToBoolean(param);
-
-            if ((isFront && SelectedBcore.Address == (RearBcore?.Address ?? 0)) ||
-                (!isFront && SelectedBcore.Address == (FrontBcore?.Address ?? 0))) return false;
-
-            return true;
-        }
-
-        private void ResetBcore(string param)
-        {
-            var isFront = ParamToBoolean(param);
-
-            if (isFront && FrontBcore != null)
-            {
-                FrontBcore = null;
-            }
-            else if (!isFront && RearBcore != null)
-            {
-                RearBcore = null;
-            }
-        }
-
-        private bool CanRestBcore(string param)
-        {
-            var isFront = ParamToBoolean(param);
-
-            return (isFront && FrontBcore != null) || (!isFront && RearBcore != null);
-        }
-
-        private static bool ParamToBoolean(string param)
-        {
-            if (string.IsNullOrEmpty(param)) return true;
-
-            return param.ToLower() != "false";
-        }
-
-        #endregion
-
-        private void StartControl()
-        {
-            if (Driver == null)
-            {
-                Driver = new CicaDriver();
-                Driver.BcoreConnectionChanged += DisconnectedDriver;
-                Driver.Start(FrontBcore.Bcore, RearBcore.Bcore);
-                IsConnecting = true;
-            }
-            else
-            {
-                Driver.BcoreConnectionChanged -= DisconnectedDriver;
-                Driver.Stop();
-                Driver = null;
-                IsConnecting = false;
-            }
-
-            //var driver = new CicaDriver();
-            //driver.BcoreConnectionChanged += (d, isConnected) =>
-            //{
-
-            //};
-            //driver.Start(FrontBcore.Bcore, RearBcore?.Bcore);
-        }
-
-        private void DisconnectedDriver(CicaDriver driver, bool isConnected)
-        {
-            Driver.BcoreConnectionChanged -= DisconnectedDriver;
-            Driver = null;
-        }
-
-        private bool CanStartControl()
-        {
-            return FrontBcore != null && RearBcore != null && !IsScanning;
-        }
 
         #region RunOnUiThread
 
@@ -324,6 +216,142 @@ namespace Cica4WD.ViewModels
 
         #endregion
 
-        #endregion
+        private void OnUpdatedGamepadStatus(object sender, GamepadReading status)
+        {
+            if (status.Buttons.HasFlag(GamepadButtons.Menu))
+            {
+                RunOnUiThread(() =>
+                {
+                    FrontBcoreManager?.Dispose();
+                    FrontBcoreManager = null;
+                    RearBcoreManager?.Dispose();
+                    RearBcoreManager = null;
+                    if (!Scanner.IsScanning)
+                    {
+                        Scanner.StartScan();
+                    }
+                });
+            }
+
+            if (!IsPressBack && status.Buttons.HasFlag(GamepadButtons.View))
+            {
+                IsPressBack = true;
+                RunOnUiThread(() =>
+                {
+                    if (ControlMode == EControlMode.Car) ControlMode = EControlMode.Tank;
+                    else ControlMode = EControlMode.Car;
+                });
+            }
+            else if (!status.Buttons.HasFlag(GamepadButtons.View))
+            {
+                IsPressBack = false;
+            }
+
+            if (FrontBcoreManager == null || RearBcoreManager == null) return;
+
+            if (TurnMode != ETurnMode.Left && status.Buttons.HasFlag(GamepadButtons.LeftShoulder) && !status.Buttons.HasFlag(GamepadButtons.RightShoulder))
+            {
+                TurnMode = ETurnMode.Left;
+            }
+            else if (TurnMode != ETurnMode.Right && status.Buttons.HasFlag(GamepadButtons.RightShoulder) && !status.Buttons.HasFlag(GamepadButtons.LeftShoulder))
+            {
+                TurnMode = ETurnMode.Right;
+            }
+            else if (!status.Buttons.HasFlag(GamepadButtons.LeftShoulder) && !status.Buttons.HasFlag(GamepadButtons.RightShoulder))
+            {
+                TurnMode = ETurnMode.None;
+            }
+
+            if (TurnMode != ETurnMode.None)
+            {
+                SetTurnSpeed(TurnMode);
+                return;
+            }
+
+            if (ControlMode == EControlMode.Tank)
+            {
+                SetTankSpeed(status);
+            }
+            else
+            {
+                SetCarSpeed(status);
+            }
+        }
+
+        private void SetCarSpeed(GamepadReading status)
+        {
+            var speed = (int)(128 * status.LeftThumbstickY);
+            var handle = status.RightThumbstickX;
+
+            var left = 0;
+            var right = 0;
+
+            if (handle < 0)
+            {
+                right = speed + 128;
+                left = 128 + (int)(speed * (1 + handle * 0.8));
+            }
+            else
+            {
+                left = speed + 128;
+                right = 128 + (int)(speed * (1 - handle * 0.8));
+            }
+
+            SetMotorSpeed(left, right);
+        }
+
+        private void SetTankSpeed(GamepadReading status)
+        {
+            var left = (int) (128*status.LeftThumbstickY) + 128;
+            var right = (int) (128*status.RightThumbstickY) + 128;
+
+            SetMotorSpeed(left, right);
+        }
+
+        private void SetTurnSpeed(ETurnMode mode)
+        {
+            var left = 128;
+            var right = 128;
+
+            if (mode == ETurnMode.Left)
+            {
+                left -= 96;
+                right += 96;
+            }
+            else if (mode == ETurnMode.Right)
+            {
+                left += 96;
+                right -= 96;
+            }
+            else
+            {
+                return;
+            }
+
+            SetMotorSpeed(left, right);
+        }
+
+        private void SetMotorSpeed(int left, int right)
+        {
+            if (Math.Abs(left - 128) < 10) left = 128;
+            if (Math.Abs(right - 128) < 10) right = 128;
+
+            RunOnUiThread(() =>
+            {
+                if (left != BeforeSpeedLeft)
+                {
+                    FrontBcoreManager.WriteMotorPwm(0, left, true);
+                    RearBcoreManager.WriteMotorPwm(0, left, true);
+                }
+                if (right != BeforeSpeedRight)
+                {
+                    FrontBcoreManager.WriteMotorPwm(1, right);
+                    RearBcoreManager.WriteMotorPwm(1, right);
+                }
+
+                BeforeSpeedLeft = left;
+                BeforeSpeedRight = right;
+            });
+        }
     }
 }

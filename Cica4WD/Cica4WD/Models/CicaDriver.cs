@@ -104,17 +104,17 @@ namespace Cica4WD.Models
                     {
                         if (leftButtonPush)
                         {
-                            FrontBcore?.WriteMotorPwm(0, 0, true);
-                            FrontBcore?.WriteMotorPwm(1, 255, true);
+                            FrontBcore?.WriteMotorPwmAsync(0, 0, true);
+                            FrontBcore?.WriteMotorPwmAsync(1, 255, true);
                         }
                         else
                         {
-                            FrontBcore?.WriteMotorPwm(0, 255, true);
-                            FrontBcore?.WriteMotorPwm(1, 0, true);
+                            FrontBcore?.WriteMotorPwmAsync(0, 255, true);
+                            FrontBcore?.WriteMotorPwmAsync(1, 0, true);
                         }
 
-                        RearBcore?.WriteMotorPwm(0, 255);
-                        RearBcore?.WriteMotorPwm(1, 255);
+                        RearBcore?.WriteMotorPwmAsync(0, 255);
+                        RearBcore?.WriteMotorPwmAsync(1, 255);
                     }
                     else
                     {
@@ -144,13 +144,13 @@ namespace Cica4WD.Models
                         {
                             if (lb != left)
                             {
-                                FrontBcore?.WriteMotorPwm(0, left, true);
-                                RearBcore?.WriteMotorPwm(0, left, true);
+                                FrontBcore?.WriteMotorPwmAsync(0, left, true);
+                                RearBcore?.WriteMotorPwmAsync(0, left, true);
                             }
                             if (rb != right)
                             {
-                                FrontBcore?.WriteMotorPwm(1, right);
-                                RearBcore?.WriteMotorPwm(1, right);
+                                FrontBcore?.WriteMotorPwmAsync(1, right);
+                                RearBcore?.WriteMotorPwmAsync(1, right);
                             }
                         });
 

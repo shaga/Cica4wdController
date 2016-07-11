@@ -103,7 +103,7 @@ namespace LibBcore
             return voltage;
         }
 
-        public async Task WriteMotorPwm(int idx, int speed, bool isFlip = false)
+        public async void WriteMotorPwm(int idx, int speed, bool isFlip = false)
         {
             if (!IsInitialized) return;
 
@@ -112,7 +112,16 @@ namespace LibBcore
             await WriteValue(BcoreUuid.MotorCharacteristic, Bcore.CreateMotorSpeedValue(idx, speed, isFlip));
         }
 
-        public async Task WriteServoPos(int idx, int pos, bool isFlip = false, int trim = 0)
+        public async Task WriteMotorPwmAsync(int idx, int speed, bool isFlip = false)
+        {
+            if (!IsInitialized) return;
+
+            if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
+
+            await WriteValue(BcoreUuid.MotorCharacteristic, Bcore.CreateMotorSpeedValue(idx, speed, isFlip));
+        }
+
+        public async void WriteServoPos(int idx, int pos, bool isFlip = false, int trim = 0)
         {
             if (!IsInitialized) return;
 
@@ -121,7 +130,16 @@ namespace LibBcore
             await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, isFlip, trim));
         }
 
-        public async Task WriteServoPos(int idx, int pos, int trim)
+        public async Task WriteServoPosAsync(int idx, int pos, bool isFlip = false, int trim = 0)
+        {
+            if (!IsInitialized) return;
+
+            if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
+
+            await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, isFlip, trim));
+        }
+
+        public async void WriteServoPos(int idx, int pos, int trim)
         {
             if (!IsInitialized) return;
 
@@ -130,7 +148,27 @@ namespace LibBcore
             await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, trim));
         }
 
-        public async Task WritePortOutState(int idx, bool isOn)
+        public async Task WriteServoPosAsync(int idx, int pos, int trim)
+        {
+            if (!IsInitialized) return;
+
+            if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
+
+            await WriteValue(BcoreUuid.ServoCharacteristic, Bcore.CreateServoPosValue(idx, pos, trim));
+        }
+
+        public async void WritePortOutState(int idx, bool isOn)
+        {
+            if (!IsInitialized) return;
+
+            if (idx < 0 || Bcore.MaxFunctionCount <= idx) return;
+
+            PortOutState[idx] = isOn;
+
+            await WriteValue(BcoreUuid.PortOutCharacteristic, Bcore.CreatePortOutValue(PortOutState));
+        }
+
+        public async Task WritePortOutStateAsync(int idx, bool isOn)
         {
             if (!IsInitialized) return;
 
